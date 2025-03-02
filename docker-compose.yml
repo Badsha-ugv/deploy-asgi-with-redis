@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: django_chat_app
+    command: daphne -b 0.0.0.0 -p 8000 project.asgi:application
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    container_name: chat_redis
+    restart: always
+    ports:
+      - "6379:6379"

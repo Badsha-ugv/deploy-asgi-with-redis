@@ -15,7 +15,7 @@ SECRET_KEY = 'django-insecure-da7o9ur!9nmu)t0r_1qnj#qvz&@$$6sfl@8v@06+gsd3rdk7x5
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -82,7 +82,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],  # Redis server
+            "hosts": ["rediss://red-cuvaq48gph6c73epfm30:EsILLT1XJxDV61FHcImN5RBVhmvUiLEy@oregon-keyvalue.render.com:6379"],  # Redis server
         },
     },
 }
@@ -144,3 +144,7 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
