@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f0f2f5;
+        }
+        #left-section {
+            width: 30%;
+            background-color: #fff;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        #user-search {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #user-list {
+            list-style: none;
+            padding: 0;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        #user-list li {
+            padding: 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        #user-list li:hover {
+            background-color: #f5f5f5;
+        }
+        #user-list .last-message {
+            font-size: 0.9em;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #logout-btn {
+            padding: 10px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        #logout-btn:hover {
+            background-color: #c82333;
+        }
+        #chat-section {
+            width: 70%;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            background-color: #fff;
+        }
+        #chat-header {
+            font-size: 1.2em;
+            font-weight: bold;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border-radius: 5px 5px 0 0;
+        }
+        #chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #fafafa;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+        }
+        #chat-messages p {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 5px;
+            background-color: #e9ecef;
+            max-width: 70%;
+        }
+        #chat-messages p.sent {
+            background-color: #007bff;
+            color: white;
+            margin-left: auto;
+        }
+        #message-form {
+            display: flex;
+        }
+        #message-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        #send-btn {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #send-btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="left-section">
+        <input type="text" id="user-search" placeholder="Search users...">
+        <ul id="user-list">
+            {% for user in users %}
+                <li data-user-id="{{ user.id }}" data-username="{{ user.username }}">
+                    {{ user.username }}
+                    {% if user.last_message %}
+                        <div class="last-message">{{ user.last_message }}</div>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+        <button id="logout-btn" onclick="window.location.href='/logout/'">Logout</button>
+    </div>
+    <div id="chat-section">
+        <div id="chat-header">Select a user to start chatting</div>
+        <div id="chat-messages"></div>
+        <div id="message-form">
+            <input type="text" id="message-input" placeholder="Type a message">
+            <button id="send-btn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const currentUser = "{{ current_user }}";
+        let receiverId = null;
+        let receiverUsername = null;
+        const socket = new WebSocket(`ws://${window.location.host}/ws/chat/`);
+
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            if (data.sender && data.message) {
+                const chat = document.getElementById('chat-messages');
+                const isSent = data.sender === currentUser;
+                chat.innerHTML += `<p class="${isSent ? 'sent' : ''}"><strong>${data.sender}:</strong> ${data.message}</p>`;
+                chat.scrollTop = chat.scrollHeight;
+                updateUserList(data.sender === receiverUsername ? receiverId : parseInt("{{ request.user.id }}"), data.message);
+            }
+        };
+
+        socket.onerror = function(e) {
+            console.error('WebSocket error:', e);
+        };
+
+        socket.onclose = function(e) {
+            console.error('WebSocket closed:', e);
+        };
+
+        function startChat(userId, username) {
+            receiverId = userId;
+            receiverUsername = username;
+            document.getElementById('chat-header').innerText = `Chatting with ${username}`;
+            loadChatHistory(userId);
+        }
+
+        function loadChatHistory(userId) {
+            fetch(`/api/messages/${userId}/`)
+            .then(response => response.json())
+            .then(messages => {
+                const chat = document.getElementById('chat-messages');
+                chat.innerHTML = '';
+                messages.forEach(msg => {
+                    const isSent = msg.sender === currentUser;
+                    chat.innerHTML += `<p class="${isSent ? 'sent' : ''}"><strong>${msg.sender}:</strong> ${msg.content}</p>`;
+                });
+                chat.scrollTop = chat.scrollHeight;
+            })
+            .catch(error => console.error('Error loading chat history:', error));
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value.trim();
+            if (message && receiverId) {
+                socket.send(JSON.stringify({
+                    'message': message,
+                    'receiver_id': receiverId
+                }));
+                messageInput.value = '';
+            } else {
+                alert('Please select a user and type a message.');
+            }
+        }
+
+        function updateUserList(userId, message) {
+            const userLi = document.querySelector(`#user-list li[data-user-id="${userId}"]`);
+            if (userLi) {
+                let lastMessageDiv = userLi.querySelector('.last-message');
+                if (!lastMessageDiv) {
+                    lastMessageDiv = document.createElement('div');
+                    lastMessageDiv.className = 'last-message';
+                    userLi.appendChild(lastMessageDiv);
+                }
+                lastMessageDiv.textContent = message;
+                userLi.parentNode.insertBefore(userLi, userLi.parentNode.firstChild); // Move to top
+            }
+        }
+
+        // Search functionality
+        document.getElementById('user-search').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            document.querySelectorAll('#user-list li').forEach(li => {
+                const username = li.getAttribute('data-username').toLowerCase();
+                li.style.display = username.includes(searchTerm) ? '' : 'none';
+            });
+        });
+
+        // Attach click event listeners
+        document.querySelectorAll('#user-list li').forEach(item => {
+            item.addEventListener('click', function() {
+                const userId = parseInt(this.getAttribute('data-user-id'));
+                const username = this.getAttribute('data-username');
+                startChat(userId, username);
+            });
+        });
+
+        document.getElementById('message-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
